@@ -1,0 +1,20 @@
+# Secrets - never commit real Supabase credentials
+.env
+.env.local
+**/application-local.properties
+
+# Backend (Maven)
+backend/target/
+backend/.mvn/
+backend/*.iml
+backend/.idea/
+
+# Frontend (Node/Vite)
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+
+# OS/editor
+.DS_Store
+.vscode/

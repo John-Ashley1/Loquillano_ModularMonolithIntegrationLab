@@ -1,0 +1,13 @@
+body {
+  background: #fafafa;
+  color: #1a1a1a;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
