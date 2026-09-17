@@ -200,27 +200,29 @@ real emails).
    distinct "Reorder needed" entry.
 
 ### Network tab evidence lab 1
+
 - InventoryServiceImpl must be package-private --> Order module may depend only on the InventoryService interface (constructor injection)
-(./confirmed.png)
+  ![Confirmed order](./confirmed.png)
 
 - Supabase credentials must be kept out of the repo (environment variables / .gitignore'd config)
-(./Rejected.png)
+  ![Rejected order](./Rejected.png)
 
 - Test both the confirmed and rejected paths end-to-end and capture Network tab evidence
-(./SupaBase.png)
+  ![Supabase setup](./SupaBase.png)
 
 ### Network tab evidence lab2
+
 - A multi-item order where all items succeed (CONFIRMED)
-(./succeedconfirmed.png)
+  ![Succeed confirmed](./succeedconfirmed.png)
 
 - A multi-item order where one item fails and the whole order is REJECTED with no partial reservation
-(./wholeorderRejected.png)
+  ![Whole order rejected](./wholeorderRejected.png)
 
 - A cancel with restock reflected in GET /api/inventory afterward
-(./Cancel.png)
+  ![Cancel with restock](./Cancel.png)
 
 - The notification feed showing a confirmed order, a rejected order, and a low-stock alert
-(./notifications.png)
+  ![Notification feed](./notifications.png)
 
 ## Reflection lab 1
 
