@@ -200,31 +200,27 @@ real emails).
    distinct "Reorder needed" entry.
 
 ### Network tab evidence lab 1
-
 - InventoryServiceImpl must be package-private --> Order module may depend only on the InventoryService interface (constructor injection)
-(./MODULAR_MONOLITH/confirmed.png)
+(./confirmed.png)
 
 - Supabase credentials must be kept out of the repo (environment variables / .gitignore'd config)
-(./MODULAR_MONOLITH/Rejected.png)
+(./Rejected.png)
 
 - Test both the confirmed and rejected paths end-to-end and capture Network tab evidence
-(./MODULAR_MONOLITH/SupaBase.png)
-
+(./SupaBase.png)
 
 ### Network tab evidence lab2
+- A multi-item order where all items succeed (CONFIRMED)
+(./succeedconfirmed.png)
 
-•	A multi-item order where all items succeed (CONFIRMED)
-(./MODULAR_MONOLITH/succeedconfirmed.png)
+- A multi-item order where one item fails and the whole order is REJECTED with no partial reservation
+(./wholeorderRejected.png)
 
-•	A multi-item order where one item fails and the whole order is REJECTED with no partial reservation
-(./MODULAR_MONOLITH/wholeorderRejected.png)
+- A cancel with restock reflected in GET /api/inventory afterward
+(./Cancel.png)
 
-•	A cancel with restock reflected in GET /api/inventory afterward
-(./MODULAR_MONOLITH/Cancel.png)
-
-•	The notification feed showing a confirmed order, a rejected order, and a low-stock alert
-(./MODULAR_MONOLITH/notifications.png)
-
+- The notification feed showing a confirmed order, a rejected order, and a low-stock alert
+(./notifications.png)
 
 ## Reflection lab 1
 
