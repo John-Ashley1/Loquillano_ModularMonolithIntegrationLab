@@ -13,6 +13,10 @@ import edu.cit.loquillano.shop.dto.OrderItemRequest;
 import edu.cit.loquillano.shop.dto.OrderItemSummary;
 import edu.cit.loquillano.shop.dto.OrderResponse;
 import edu.cit.loquillano.shop.dto.OrderSummary;
+import edu.cit.loquillano.supplier.ReorderResult;
+import edu.cit.loquillano.supplier.SupplierGateway;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -26,11 +30,14 @@ import java.util.stream.Collectors;
 
 /**
  * Order module entry point. Talks to Inventory purely in-process through
- * the InventoryService interface, and talks to Notification purely
- * through published events — never a direct call either way.
+ * the InventoryService interface, to the supplier's Anti-Corruption Layer
+ * purely through the SupplierGateway interface, and to Notification purely
+ * through published events — never a direct call to any implementation.
  */
 @Service
 public class OrderService {
+
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
     private static final String OUTCOME_OK = "OK";
     private static final String OUTCOME_RESERVED = "RESERVED";
@@ -40,16 +47,22 @@ public class OrderService {
     private final InventoryService inventoryService;
     private final OrderRepository orderRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final SupplierGateway supplierGateway;
 
     @Value("${app.inventory.low-stock-threshold:5}")
     private int lowStockThreshold;
 
+    @Value("${app.inventory.reorder-quantity:20}")
+    private int reorderQuantity;
+
     public OrderService(InventoryService inventoryService,
                          OrderRepository orderRepository,
-                         ApplicationEventPublisher eventPublisher) {
+                         ApplicationEventPublisher eventPublisher,
+                         SupplierGateway supplierGateway) {
         this.inventoryService = inventoryService;
         this.orderRepository = orderRepository;
         this.eventPublisher = eventPublisher;
+        this.supplierGateway = supplierGateway;
     }
 
     @Transactional
@@ -84,6 +97,12 @@ public class OrderService {
             if (reserved.getStock() < lowStockThreshold) {
                 eventPublisher.publishEvent(
                         new LowStockEvent(reserved.getProductId(), reserved.getName(), reserved.getStock()));
+
+                // Lab 3: actually place a reorder instead of only logging.
+                ReorderResult reorderResult = supplierGateway.reorder(reserved.getProductId(), reorderQuantity);
+                log.info("Auto-reorder for {} (stock {}): {} - {}",
+                        reserved.getProductId(), reserved.getStock(),
+                        reorderResult.getStatus(), reorderResult.getMessage());
             }
         }
 

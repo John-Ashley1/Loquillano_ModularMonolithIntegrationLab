@@ -43,14 +43,25 @@ alerts).
 │       │   ├── OrderNotFoundException.java
 │       │   ├── OrderAlreadyCancelledException.java
 │       │   └── dto/
-│       └── notification/              # Notification module (Lab 2)
-│           ├── Notification.java
-│           ├── NotificationDTO.java
-│           ├── NotificationRepository.java
-│           ├── NotificationEventListener.java  (package-private)
-│           └── NotificationController.java     (GET /api/notifications)
+│       ├── notification/              # Notification module (Lab 2)
+│       │   ├── Notification.java
+│       │   ├── NotificationDTO.java
+│       │   ├── NotificationRepository.java
+│       │   ├── NotificationEventListener.java  (package-private)
+│       │   └── NotificationController.java     (GET /api/notifications)
+│       └── supplier/                  # LegacySupply Anti-Corruption Layer (Lab 3)
+│           ├── SupplierGateway.java             (public interface)
+│           ├── SupplierGatewayImpl.java         (package-private)
+│           ├── LegacySupplyClient.java          (package-private)
+│           ├── LegacySupplyHttp.java            (package-private)
+│           ├── LegacySupplySessionManager.java  (package-private)
+│           ├── SupplierCatalogProperties.java   (package-private)
+│           ├── SupplierOrder.java / SupplierOrderRepository.java
+│           └── XML DTOs (AuthRequestXml, AuthResponseXml,
+│               PurchaseOrderRequestXml, PurchaseOrderAckXml, LSErrorXml)
 ├── frontend/    React (Vite) app — cart, inventory table, order history, activity feed
 ├── sql/create_tables.sql   Full schema (recreated from scratch) + seed data
+├── INTEGRATION.md   LegacySupply contract discovery notes (Part B)
 └── README.md
 ```
 
@@ -81,6 +92,7 @@ export SUPABASE_DB_USERNAME="postgres.<project-ref>"
 export SUPABASE_DB_PASSWORD="<your-db-password>"
 export CORS_ALLOWED_ORIGIN="http://localhost:5173"        # optional, this is the default
 export LOW_STOCK_THRESHOLD="5"                             # optional, this is the default
+export LS_API_KEY="the-key-your-instructor-sent-you"        # Lab 3 — see section below
 ```
 
 Never commit real values — `application.properties` only reads these via
@@ -368,3 +380,112 @@ table) subscribing to that topic. Order and Inventory wouldn't need any
 other changes, since they never depended on Notification directly — only
 on the event *shape*, which stays the same, just serialized instead of
 passed as a Java object.
+
+## Reflection lab 3
+Open your self-check page (https://legacysupply.onrender.com/verify,
+authenticated as your Client ID) — it shows three reflection questions
+generated from your own traffic against LegacySupply. Paste each
+question exactly as shown, then answer it in 3–6 sentences, referring to
+your own logs (application console output, the `supplier_orders` table,
+or your INTEGRATION.md notes) and code.
+
+## Question 1
+
+**Q:** _paste the exact question from your /verify page here_
+
+**A:** _fill in, 3-6 sentences, citing your own evidence_
+
+## Question 2
+
+**Q:** _paste the exact question from your /verify page here_
+
+**A:** _fill in, 3-6 sentences, citing your own evidence_
+
+## Question 3
+
+**Q:** _paste the exact question from your /verify page here_
+
+**A:** _fill in, 3-6 sentences, citing your own evidence_
+
+## Lab 3: LegacySupply integration (Anti-Corruption Layer)
+
+A new module, `edu.cit.loquillano.supplier`, wraps LegacySupply — an
+external, XML-only, unreliable supplier system. Its only public surface
+is `SupplierGateway` (plus the plain domain types `ReorderResult` and
+`SupplierOrderStatus`); every LegacySupply-specific detail (XML shapes,
+SupplierSku, PackSize, session tokens, numeric StatusCodes) is
+package-private inside `supplier` and never leaks into Order or Inventory.
+
+### Setup
+
+1. **Read the manual and probe first.** See [`INTEGRATION.md`](INTEGRATION.md)
+   for the exact curl commands to run against LegacySupply before writing
+   or running any of this module's code. Fill in the product-mapping
+   table, session-lifetime measurement, and observed error codes there.
+2. **Configure your catalog mapping and Client ID** in
+   `application.properties` once you know your real SupplierSku/PackSize
+   values from Part B (these aren't secrets, so they're fine to commit):
+   ```properties
+   app.supplier.legacysupply.client-id=your-student-id
+   app.supplier.catalog.P100.sku=YOUR_REAL_SKU
+   app.supplier.catalog.P100.pack-size=YOUR_REAL_PACK_SIZE
+   ```
+3. **Set your API key as an environment variable — never a literal value
+   in any `.properties` file.** `application.properties` only references
+   it via a placeholder with no default, so Spring *requires* it to be
+   set and the app fails fast at startup instead of silently sending an
+   empty key:
+   ```properties
+   app.supplier.legacysupply.api-key=${LS_API_KEY}
+   ```
+   Set it as a **persistent** environment variable, not just a
+   session-scoped shell variable — a value set only with PowerShell's
+   `$env:LS_API_KEY = "..."` disappears once that terminal closes and
+   may not be visible to a differently-launched process (IDE run
+   configs, a fresh terminal tab, etc.):
+   ```powershell
+   setx LS_API_KEY "the-key-your-instructor-sent-you"
+   ```
+   (Close and reopen your terminal/IDE once after running `setx` for it
+   to take effect.) On macOS/Linux, add `export LS_API_KEY="..."` to your
+   shell profile instead. The key is never committed — only the
+   `${LS_API_KEY}` placeholder is.
+
+### How the pieces fit together
+
+- **`SupplierGatewayImpl`** (package-private) is the actual ACL: given a
+  productId and a unit count, it looks up the SKU/pack-size mapping,
+  rounds units up to whole cases, and submits the order.
+- **`LegacySupplyClient`** owns resilience: a 3-second timeout per call,
+  up to 3 attempts with exponential backoff on retryable failures (5xx,
+  429, connection/timeout errors), and automatic session refresh on any
+  `E-AUTH-*` error — no token is ever pasted by hand.
+- **Idempotency**: every reorder gets one `requestId` and one `BuyerRef`
+  (`RO-<our-id>`) generated once and stored on its `supplier_orders` row.
+  Every retry and every resend reuses those same values, so LegacySupply
+  can never see the same reorder as two different orders.
+- **`SupplierOrderResendJob`** (`@Scheduled`) periodically retries any
+  order still `PENDING` (never successfully submitted, or LegacySupply
+  was down) — this is what makes a reorder impossible to lose.
+- **`SupplierOrderTrackingJob`** (`@Scheduled`) polls open orders,
+  translates LegacySupply's numeric StatusCode into our own
+  `SupplierOrderStatus` enum, and publishes `SupplierOrderDeliveredEvent`
+  the moment one transitions to `DELIVERED`. Inventory's
+  `SupplierDeliveryListener` (package-private, imports only the event
+  package) is what actually restocks — Order/Inventory and the supplier
+  module never call each other directly for this.
+- **`OrderService`** now injects `SupplierGateway` directly (same pattern
+  as its `InventoryService` dependency — a public interface, no
+  implementation detail leaks across) and calls `reorder()` whenever a
+  `reserve()` drops a product below the low-stock threshold, in addition
+  to still publishing `LowStockEvent` for the notification log.
+
+### Submission
+
+```bash
+git add .
+git commit -m "Lab 3: LegacySupply Anti-Corruption Layer"
+git tag lab3-final
+git push --tags
+git push
+```
