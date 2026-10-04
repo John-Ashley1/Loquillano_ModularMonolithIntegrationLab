@@ -22,6 +22,8 @@ public class Order {
     public static final String STATUS_CONFIRMED = "CONFIRMED";
     public static final String STATUS_REJECTED = "REJECTED";
     public static final String STATUS_CANCELLED = "CANCELLED";
+    /** Cannot be filled from stock yet, but a supplier delivery is on its way. Holds NO stock. */
+    public static final String STATUS_BACKORDERED = "BACKORDERED";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

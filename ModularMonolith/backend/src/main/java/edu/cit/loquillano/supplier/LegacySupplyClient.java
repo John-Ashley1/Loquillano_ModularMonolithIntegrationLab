@@ -26,8 +26,9 @@ class LegacySupplyClient {
     LegacySupplyClient(
             @Value("${app.supplier.legacysupply.base-url}") String baseUrl,
             @Value("${app.supplier.legacysupply.client-id}") String clientId,
-            @Value("${app.supplier.legacysupply.api-key}") String apiKey) {
-        this.http = new LegacySupplyHttp(baseUrl);
+            @Value("${app.supplier.legacysupply.api-key}") String apiKey,
+            edu.cit.loquillano.config.AppInstance appInstance) {
+        this.http = new LegacySupplyHttp(baseUrl, appInstance::getId);
         this.sessionManager = new LegacySupplySessionManager(http, clientId, apiKey);
     }
 

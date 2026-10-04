@@ -18,6 +18,16 @@ public interface InventoryService {
     InventoryItem getItem(String productId);
 
     /**
+     * Like getItem, but takes a row lock held until the caller's transaction
+     * ends. MUST be called inside a transaction. Callers locking several
+     * products should do so in a consistent (e.g. sorted) order to avoid
+     * deadlocks.
+     *
+     * @throws ProductNotFoundException if no such product exists
+     */
+    InventoryItem getItemForUpdate(String productId);
+
+    /**
      * Attempts to reserve (deduct) the given quantity from stock.
      *
      * @throws ProductNotFoundException   if no such product exists

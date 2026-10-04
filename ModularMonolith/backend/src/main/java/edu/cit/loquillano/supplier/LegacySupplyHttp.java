@@ -23,11 +23,13 @@ class LegacySupplyHttp {
     private static final Duration TIMEOUT = Duration.ofSeconds(3);
 
     private final String baseUrl;
+    private final java.util.function.Supplier<String> instanceId;
     private final HttpClient httpClient;
     private final ObjectMapper xmlMapper;
 
-    LegacySupplyHttp(String baseUrl) {
+    LegacySupplyHttp(String baseUrl, java.util.function.Supplier<String> instanceId) {
         this.baseUrl = baseUrl;
+        this.instanceId = instanceId;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(TIMEOUT)
                 .build();
@@ -54,7 +56,9 @@ class LegacySupplyHttp {
             HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + path))
                     .timeout(TIMEOUT)
-                    .header("Accept", "application/xml");
+                    .header("Accept", "application/xml")
+                    // Lab 4 Task 1: identifies which running copy of the app made this call.
+                    .header("X-Client-Instance", instanceId.get());
 
             if (sessionToken != null) {
                 builder.header("X-LS-Session", sessionToken);

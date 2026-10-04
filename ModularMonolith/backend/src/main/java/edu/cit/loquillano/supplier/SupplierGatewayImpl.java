@@ -29,7 +29,9 @@ class SupplierGatewayImpl implements SupplierGateway {
     }
 
     @Override
-    @Transactional
+    // REQUIRES_NEW: callers now invoke this outside their own transaction (often from an
+    // after-commit callback, where joining the finished transaction would lose the writes).
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public ReorderResult reorder(String productId, int unitsNeeded) {
         SupplierCatalogProperties.Mapping mapping = catalogProperties.forProduct(productId);
         if (mapping == null) {
@@ -83,6 +85,36 @@ class SupplierGatewayImpl implements SupplierGateway {
             log.error("LegacySupply rejected order {} permanently: {}", order.getId(), e.getMessage());
             return new ReorderResult(order.getId(), SupplierOrderStatus.FAILED, e.getMessage());
         }
+    }
+
+    private static final java.util.List<SupplierOrderStatus> SUBMITTED_OPEN = java.util.List.of(
+            // UNKNOWN is deliberately excluded: LegacySupply returned a status code the manual
+            // does not define (e.g. 90), so we cannot promise a customer that stock will arrive.
+            SupplierOrderStatus.ACCEPTED, SupplierOrderStatus.PICKING,
+            SupplierOrderStatus.SHIPPED);
+
+    @Override
+    @Transactional(readOnly = true)
+    public int unitsOnOrder(String productId) {
+        return supplierOrderRepository.findAllByProductIdAndStatusIn(productId, SUBMITTED_OPEN).stream()
+                .filter(o -> o.getPoNumber() != null)
+                .mapToInt(SupplierOrder::getUnits)
+                .sum();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean hasUnsubmittedReorder(String productId) {
+        return supplierOrderRepository
+                .findAllByProductIdAndStatusIn(productId, java.util.List.of(SupplierOrderStatus.PENDING))
+                .stream()
+                .anyMatch(o -> o.getPoNumber() == null);
+    }
+
+    @Override
+    public java.util.Optional<String> supplierSkuFor(String productId) {
+        return java.util.Optional.ofNullable(catalogProperties.forProduct(productId))
+                .map(SupplierCatalogProperties.Mapping::getSku);
     }
 
     static SupplierOrderStatus mapStatusCode(int code) {
